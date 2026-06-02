@@ -20,6 +20,8 @@
 
 `include "snitch_vm/typedef.svh"
 
+`include "obi/typedef.svh"
+
 /// Snitch many-core cluster with improved TCDM interconnect.
 /// Snitch Cluster Top-Level.
 module snitch_cluster
@@ -544,6 +546,40 @@ module snitch_cluster
   // Define dca_lane_req_t and dca_lane_rsp_t
   `DCA_TYPEDEF_ALL(dca_lane, DcaLaneDataWidth)
 
+  // Memory Init typedefs
+  typedef struct packed {
+      logic [PhysicalAddrWidth-1:0] cfg;
+      logic [WideDataWidth-1:0]     term;
+      logic [WideDataWidth/8-1:0]   strb;
+      logic [WideIdWidthOut-1:0]    id;
+  } init_req_chan_t;
+
+  typedef struct packed {
+      init_req_chan_t req_chan;
+      logic           req_valid;
+      logic           rsp_ready;
+  } init_req_t;
+
+  typedef struct packed {
+      logic [WideDataWidth-1:0] init;
+  } init_rsp_chan_t;
+
+  typedef struct packed {
+      init_rsp_chan_t rsp_chan;
+      logic           rsp_valid;
+      logic           req_ready;
+  } init_rsp_t;
+
+  // OBI typedefs
+  `OBI_TYPEDEF_MINIMAL_A_OPTIONAL(a_opt_t)
+  `OBI_TYPEDEF_MINIMAL_R_OPTIONAL(r_opt_t)
+
+  `OBI_TYPEDEF_TYPE_A_CHAN_T(obi_a_chan_t, addr_t, data_dma_t, strb_dma_t, id_dma_mst_t, a_opt_t)
+  `OBI_TYPEDEF_TYPE_R_CHAN_T(obi_r_chan_t, data_dma_t, id_dma_slv_t, r_opt_t)
+
+  `OBI_TYPEDEF_REQ_T(obi_dma_req_t, obi_a_chan_t)
+  `OBI_TYPEDEF_RSP_T(obi_dma_rsp_t, obi_r_chan_t)
+
   // Event counter increments for the TCDM.
   typedef struct packed {
     /// Number requests going in
@@ -712,6 +748,9 @@ module snitch_cluster
   dma_events_t       [DMANumChannels-1:0] dma_events;
   icache_l0_events_t [NrCores-1:0]        icache_events;
 
+  tcdm_dma_req_t [DMANumChannels-1:0] tcdm_dma_req;
+  tcdm_dma_rsp_t [DMANumChannels-1:0] tcdm_dma_rsp;
+
   // 4. Memory Subsystem (Core side).
   reqrsp_req_t [NrCores-1:0] core_req;
   reqrsp_rsp_t [NrCores-1:0] core_rsp;
@@ -729,6 +768,10 @@ module snitch_cluster
   logic [NrCores-1:0] cl_interrupt;
   logic [NrCores-1:0] barrier_in;
   logic barrier_out;
+
+  // OBI
+  obi_dma_req_t [NrCores-1:0][DMANumChannels-1:0] obi_dma_req;
+  obi_dma_rsp_t [NrCores-1:0][DMANumChannels-1:0] obi_dma_res;
 
   // -------------
   // DMA Subsystem
@@ -899,9 +942,42 @@ module snitch_cluster
     assign ext_dma_req[i].q.amo = reqrsp_pkg::AMONone;
     assign ext_dma_req[i].q.user = '0;
   end
+  localparam int unsigned NumDMAIcoInputs = DMANumChannels + 2;
+
+  // ------------
+  // TCDM Arbiter
+  // ------------
+  for (genvar i = 0; i < NrCores; i++) begin : gen_core_obi_to_tcdm
+    // This currently assumes only one DMA core is present in the system. However this limitation
+    // could easily be overcome by adapting the number of inputs to the i_dma_interconnect
+    // according to the number of DMA cores present.
+    if (Xdma[i]) begin : gen_dma_obi_to_tcdm
+      obi_to_tcdm #(
+        .obi_req_t (obi_dma_req_t),
+        .obi_rsp_t (obi_dma_rsp_t),
+        .tcdm_req_t (tcdm_dma_req_t),
+        .tcdm_rsp_t (tcdm_dma_rsp_t),
+        .AddrWidth (PhysicalAddrWidth),
+        .DataWidth (WideDataWidth),
+        .IdWidth (WideIdWidthOut),
+        .UserWidth (CoreUserWidth),
+        .BufDepth (MemoryMacroLatency + 1),
+        .NumChannels (DMANumChannels)
+      ) i_obi_to_tcdm (
+        .clk_i,
+        .rst_ni,
+        .obi_req_i (obi_dma_req[i]),
+        .obi_rsp_o (obi_dma_res[i]),
+        .tcdm_req_o (tcdm_dma_req),
+        .tcdm_rsp_i (tcdm_dma_rsp)
+      );
+    end else begin : gen_dma_obi_to_tcdm_stub
+      assign obi_dma_res[i] = '0;
+    end
+  end
 
   snitch_tcdm_interconnect #(
-    .NumInp (2),
+    .NumInp (NumDMAIcoInputs),
     .NumOut (NrSuperBanks),
     .NumHyperBanks (NrHyperBanks),
     .tcdm_req_t (tcdm_dma_req_t),
@@ -916,8 +992,8 @@ module snitch_cluster
   ) i_dma_interconnect (
     .clk_i,
     .rst_ni,
-    .req_i (ext_dma_req),
-    .rsp_o (ext_dma_rsp),
+    .req_i ({ext_dma_req[1], ext_dma_req[0], tcdm_dma_req}),
+    .rsp_o ({ext_dma_rsp[1], ext_dma_rsp[0], tcdm_dma_rsp}),
     .mem_req_o (sb_dma_req),
     .mem_rsp_i (sb_dma_rsp)
   );
@@ -1151,6 +1227,14 @@ module snitch_cluster
       .axi_aw_chan_t (axi_mst_dma_aw_chan_t),
       .axi_req_t (axi_mst_dma_req_t),
       .axi_rsp_t (axi_mst_dma_resp_t),
+      .init_req_chan_t (init_req_chan_t),
+      .init_rsp_chan_t (init_rsp_chan_t),
+      .init_req_t (init_req_t),
+      .init_rsp_t (init_rsp_t),
+      .obi_a_chan_t (obi_a_chan_t),
+      .obi_r_chan_t (obi_r_chan_t),
+      .obi_req_t (obi_dma_req_t),
+      .obi_rsp_t (obi_dma_rsp_t),
       .hive_req_t (hive_req_t),
       .hive_rsp_t (hive_rsp_t),
       .acc_req_t (acc_req_t),
@@ -1220,6 +1304,7 @@ module snitch_cluster
       .DebugSupport (DebugSupport),
       .TCDMAliasEnable (AliasRegionEnable),
       .TCDMAliasStart (TCDMAliasStart),
+      .addr_rule_t (xbar_rule_t),
       .CollectiveWidth (CollectiveWidth),
       .EnableDca (EnableDca)  
     ) i_snitch_cc (
@@ -1250,12 +1335,15 @@ module snitch_cluster
       .x_result_ready_o (x_result_ready_o[i]),
       .axi_dma_req_o (axi_dma_req),
       .axi_dma_res_i (axi_dma_res),
+      .obi_dma_req_o (obi_dma_req[i]),
+      .obi_dma_res_i (obi_dma_res[i]),
       .axi_dma_busy_o (),
       .axi_dma_events_o (dma_core_events),
       .core_events_o (core_events[i]),
       .tcdm_addr_base_i (tcdm_start_address),
       .barrier_o (barrier_in[i]),
       .barrier_i (barrier_out),
+      .dma_addr_rule_i (enabled_dma_addr_rule),
       .dca_req_i (dca_lane_req[i]),
       .dca_rsp_o (dca_lane_rsp[i])  
     );
