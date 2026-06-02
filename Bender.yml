@@ -85,6 +85,7 @@ sources:
       - hw/tcdm_interface/src/tcdm_interface.sv
       # Level 1
       - hw/tcdm_interface/src/axi_to_tcdm.sv
+      - hw/tcdm_interface/src/obi_to_tcdm.sv
       - hw/tcdm_interface/src/reqrsp_to_tcdm.sv
       - hw/tcdm_interface/src/tcdm_mux.sv
   - target: simulation
