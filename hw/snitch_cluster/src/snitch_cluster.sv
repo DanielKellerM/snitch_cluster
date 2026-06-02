@@ -403,11 +403,11 @@ module snitch_cluster
   localparam int unsigned NrRules = (1 + AliasRegionEnable) * NrRuleIdcs;
 
   // DMA X-BAR configuration
-  // SoC in Request, DMA Channels, `n` instruction caches.
-  localparam int unsigned NrWideMasters = 1 + DMANumChannels + NrHives;
+  // DMA Channels, `n` instruction caches.
+  localparam int unsigned NrWideMasters = DMANumChannels + NrHives;
   localparam int unsigned WideIdWidthOut = $clog2(NrWideMasters) + WideIdWidthIn;
-  // TCDM, SoC out, ZeroMemory, (Bootrom)
-  localparam int unsigned NrWideSlaves = 3 + IntBootromEnable;
+  // SoC out, (Bootrom)
+  localparam int unsigned NrWideSlaves = 1 + IntBootromEnable;
   localparam int unsigned NrWideRuleIdcs = NrWideSlaves - 1;
   localparam int unsigned NrWideRules = (1 + AliasRegionEnable) * NrWideRuleIdcs;
 
@@ -784,27 +784,38 @@ module snitch_cluster
   };
 
   // Define the address map for the wide XBAR
-  xbar_rule_t [5:0] dma_xbar_rules;
+  xbar_rule_t [1:0] dma_xbar_rules;
   xbar_rule_t [DmaXbarCfg.NoAddrRules-1:0] enabled_dma_xbar_rule;
+
   assign dma_xbar_rules = '{
     '{idx: BootRom,    start_addr: BootRomAliasStart,      end_addr: BootRomAliasEnd},
-    '{idx: ZeroMemory, start_addr: ZeroMemAliasStart,      end_addr: ZeroMemAliasEnd},
-    '{idx: TCDMDMA,    start_addr: TCDMAliasStart,         end_addr: TCDMAliasEnd},
-    '{idx: BootRom,    start_addr: bootrom_start_address,  end_addr: bootrom_end_address},
-    '{idx: ZeroMemory, start_addr: zero_mem_start_address, end_addr: zero_mem_end_address},
-    '{idx: TCDMDMA,    start_addr: tcdm_start_address,     end_addr: tcdm_end_address}
+    '{idx: BootRom,    start_addr: bootrom_start_address,  end_addr: bootrom_end_address}
   };
+
   always_comb begin
     automatic int unsigned i = 0;
-    enabled_dma_xbar_rule[i] = dma_xbar_rules[0]; i++; // TCDM
-    enabled_dma_xbar_rule[i] = dma_xbar_rules[1]; i++; // ZeroMemory
     if (IntBootromEnable) begin
-      enabled_dma_xbar_rule[i] = dma_xbar_rules[2]; i++; // Bootrom
+      enabled_dma_xbar_rule[i] = dma_xbar_rules[0]; i++; // Bootrom
     end
     if (AliasRegionEnable) begin
-      enabled_dma_xbar_rule[i] = dma_xbar_rules[3]; i++; // TCDM Alias
-      enabled_dma_xbar_rule[i] = dma_xbar_rules[4]; i++; // ZeroMemory Alias
-      if (IntBootromEnable) enabled_dma_xbar_rule[i] = dma_xbar_rules[5]; // Bootrom Alias
+      if (IntBootromEnable) enabled_dma_xbar_rule[i] = dma_xbar_rules[1]; // Bootrom Alias
+    end
+  end
+
+  // dma address rules
+  xbar_rule_t [1:0] dma_addr_rule;
+  xbar_rule_t [AliasRegionEnable:0] enabled_dma_addr_rule;
+
+  assign dma_addr_rule = '{
+    '{idx: TCDMDMA,    start_addr: TCDMAliasStart,         end_addr: TCDMAliasEnd},
+    '{idx: TCDMDMA,    start_addr: tcdm_start_address,     end_addr: tcdm_end_address}
+  };
+
+  always_comb begin
+    automatic int unsigned i = 0;
+    enabled_dma_addr_rule[i] = dma_addr_rule[0]; i++; // TCDM
+    if (AliasRegionEnable) begin
+      enabled_dma_addr_rule[i] = dma_addr_rule[1]; i++; // TCDM Alias
     end
   end
 
