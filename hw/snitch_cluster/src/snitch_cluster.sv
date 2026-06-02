@@ -638,12 +638,13 @@ module snitch_cluster
   assign cluster_periph_start_address = IntBootromEnable ? bootrom_end_address : tcdm_end_address;
   assign cluster_periph_end_address   = cluster_periph_start_address + ClusterPeriphSize * 1024;
 
-  addr_t zero_mem_start_address, zero_mem_end_address;
-  assign zero_mem_start_address = cluster_periph_end_address;
-  assign zero_mem_end_address   = cluster_periph_end_address + ZeroMemorySize * 1024;
+  // gbellocchi: Removing zero_mem address range. Should it be used for peripherals?
+  // addr_t zero_mem_start_address, zero_mem_end_address;
+  // assign zero_mem_start_address = cluster_periph_end_address;
+  // assign zero_mem_end_address   = cluster_periph_end_address + ZeroMemorySize * 1024;
 
   addr_t ext_mem_start_address, ext_mem_end_address;
-  assign ext_mem_start_address = zero_mem_end_address;
+  assign ext_mem_start_address = cluster_periph_end_address;
   assign ext_mem_end_address   = ext_mem_start_address + ExtMemorySize * 1024;
 
   addr_t cluster_start_address, cluster_end_address;
@@ -659,10 +660,11 @@ module snitch_cluster
   localparam addr_t PeriphAliasStart = IntBootromEnable ? BootRomAliasEnd : TCDMAliasEnd;
   localparam addr_t PeriphAliasEnd   = PeriphAliasStart + ClusterPeriphSize * 1024;
 
-  localparam addr_t ZeroMemAliasStart = PeriphAliasEnd;
-  localparam addr_t ZeroMemAliasEnd   = PeriphAliasEnd + ZeroMemorySize * 1024;
+  // gbellocchi: Removing zero_mem address range.
+  // localparam addr_t ZeroMemAliasStart = PeriphAliasEnd;
+  // localparam addr_t ZeroMemAliasEnd   = PeriphAliasEnd + ZeroMemorySize * 1024;
 
-  localparam addr_t ExtAliasStart = ZeroMemAliasEnd;
+  localparam addr_t ExtAliasStart = PeriphAliasEnd;
   localparam addr_t ExtAliasEnd   = ExtAliasStart + ExtMemorySize * 1024;
 
   // ----------------
@@ -848,22 +850,6 @@ module snitch_cluster
     .addr_map_i           (enabled_dma_xbar_rule),
     .en_default_mst_port_i({DmaXbarCfg.NoSlvPorts{DmaEnableDefaultMstPort}}),
     .default_mst_port_i   ({DmaXbarCfg.NoSlvPorts{dma_xbar_default_rule}})
-  );
-
-  axi_zero_mem #(
-    .axi_req_t (axi_slv_dma_req_t),
-    .axi_resp_t (axi_slv_dma_resp_t),
-    .AddrWidth (PhysicalAddrWidth),
-    .DataWidth (WideDataWidth),
-    .IdWidth (WideIdWidthOut),
-    .NumBanks (1),
-    .BufDepth (1)
-  ) i_axi_zeromem (
-    .clk_i,
-    .rst_ni,
-    .busy_o (),
-    .axi_req_i (wide_axi_slv_req[ZeroMemory]),
-    .axi_resp_o (wide_axi_slv_rsp[ZeroMemory])
   );
 
   addr_t [1:0] ext_dma_req_q_addr_nontrunc;
