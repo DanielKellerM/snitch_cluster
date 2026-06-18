@@ -1,0 +1,5 @@
+## Force the snitch-cluster fork axi/common_cells branches onto transitive
+## consumers (idma, axi_riscv_atomics) whose semver pins can't match a branch rev.
+overrides:
+  axi:          { git: https://github.com/DanielKellerM/axi.git,           rev: babd002fa34061b01b1b7f34683f6432510ee417 }
+  common_cells: { git: https://github.com/pulp-platform/common_cells.git, rev: snitch    }
