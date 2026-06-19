@@ -160,11 +160,11 @@ snrt.crt0.init_tls:
     la        t1, __tbss_start
     sub       t0, t0, t1
     sub       sp, sp, t0
-    andi      sp, sp, ~0x7 # align to 8B
+    andi      sp, sp, ~0xf # align to 16B (RISC-V ilp32d ABI stack alignment)
     # Set tp to the base of the tls
     mv        tp, sp
     # TODO colluca: why again?
-    andi      sp, sp, ~0x7 # align stack to 8B
+    andi      sp, sp, ~0xf # align stack to 16B (RISC-V ilp32d ABI)
 #endif
 
 #ifdef SNRT_INIT_INTERRUPT
