@@ -45,6 +45,7 @@
 #define SNRT_CLUSTER_NUM ${cfg['nr_clusters']}
 #define SNRT_CLUSTER_DM_CORE_NUM 1
 #define SNRT_TCDM_BANK_WIDTH ${cfg['cluster']['data_width'] // 8}
+#define SNRT_DMA_DATA_WIDTH ${cfg['cluster']['dma_data_width']}
 #define SNRT_TCDM_BANK_NUM ${cfg['cluster']['tcdm']['banks']}
 #define SNRT_TCDM_HYPERBANK_NUM ${cfg['cluster']['tcdm']['hyperbanks']}
 #define SNRT_TCDM_BANK_PER_HYPERBANK_NUM ${cfg['cluster']['tcdm']['banks'] // cfg['cluster']['tcdm']['hyperbanks']}
