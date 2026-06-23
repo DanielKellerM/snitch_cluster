@@ -14,6 +14,7 @@
   supports_frep = False
   supports_copift = False
   supports_pulp = False
+  supports_div_sqrt = False
   pulp_subextensions = [
     'xpulppostmod',
     'xpulpabs',
@@ -33,6 +34,7 @@
       supports_frep = supports_frep or core['xfrep']
       supports_copift = supports_copift or core['xcopift']
       supports_pulp = supports_pulp or any([core[ext] for ext in pulp_subextensions])
+      supports_div_sqrt = supports_div_sqrt or core['Xdiv_sqrt']
 %>
 
 
@@ -75,6 +77,10 @@
 
 % if supports_frep:
 #define SNRT_SUPPORTS_FREP
+% endif
+
+% if supports_div_sqrt:
+#define SNRT_SUPPORTS_DIVSQRT
 % endif
 
 % if supports_copift:
