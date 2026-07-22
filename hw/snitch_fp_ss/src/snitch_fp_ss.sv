@@ -253,12 +253,13 @@ module snitch_fp_ss import snitch_pkg::*; #(
   end
 
   // Optional spill-register
-  spill_register  #(
-    .T      ( acc_req_repd_t ),
+  cc_spill_register  #(
+    .data_t ( acc_req_repd_t ),
     .Bypass ( !RegisterSequencer || !IsaCfg.Xfrep )
   ) i_spill_register_acc (
     .clk_i   ,
     .rst_ni  ( ~rst_i          ),
+    .clr_i   ( 1'b0            ),
     .valid_i ( acc_req_valid   ),
     .ready_o ( acc_req_ready   ),
     .data_i  ( acc_req         ),
@@ -882,12 +883,6 @@ module snitch_fp_ss import snitch_pkg::*; #(
         fpu_op = fpnew_pkg::F2F;
         op_select[0] = RegA;
         src_fmt      = fpnew_pkg::FP64;
-        dst_fmt      = fpnew_pkg::FP16;
-      end
-      riscv_instr::FCVT_H_H: begin
-        fpu_op = fpnew_pkg::F2F;
-        op_select[0] = RegA;
-        src_fmt      = fpnew_pkg::FP16;
         dst_fmt      = fpnew_pkg::FP16;
       end
       // Vectorial [alternate] Half Precision

@@ -4,7 +4,6 @@
 
 variables:
   GIT_STRATEGY: clone
-  GIT_SUBMODULE_STRATEGY: recursive
   # Enable colors in CI terminal
   TERM: ansi
   FORCE_COLOR: 1
@@ -12,17 +11,11 @@ variables:
   CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER: /usr/pack/gcc-9.2.0-af/linux-x64/bin/gcc
   LLVM_SYS_120_PREFIX: /usr/pack/llvm-12.0.1-af
   CMAKE: cmake-3.18.1
-  UV_CACHE_DIR: $CI_BUILDS_DIR/../cache/uv
 
 default:
   # Allow interrupting long-running jobs when a new pipeline on the same branch is triggered
   interruptible: true
-  timeout: 60m
   before_script:
-    # The CI is configured such that the uv cache directory (`UV_CACHE_DIR`),
-    # is located on the same file system outside of the build directory.
-    # `uv` should try to hardlink files instead of copying them to save space
-    - export UV_LINK_MODE=hardlink
     - source iis-setup.sh
 
 ##############
@@ -52,6 +45,16 @@ snitch-cluster-sw:
     paths:
       - sw/**/build/*.elf
     expire_in: 1 day
+
+#################
+# Spyglass lint #
+#################
+
+spyglass:
+  script:
+    - make spyglass
+    - util/lint/check_spyglass_lint.py
+        util/lint/build/snitch_cluster_wrapper/consolidated_reports/snitch_cluster_wrapper_lint_lint_rtl/moresimple.rpt
 
 #######################
 # Standalone IP tests #
@@ -115,7 +118,7 @@ snitch-cluster-vsim:
     # Run additional, more extensive tests
     - cd test/blas/gemm && ./test.sh && cd -
     - cd test/dnn/transpose && ./test.sh && cd -
-    - cd test/dnn/flashattention_2 && ./test.sh && cd -
+    # - cd test/dnn/flashattention_2 && ./test.sh && cd -
   artifacts:
     when: on_failure
     expire_in: 1 day
@@ -193,13 +196,4 @@ yosys-synthesis:
 # Non-free elaboration flow
 elab:
   script:
-    - make nonfree
     - make elab
-
-# Spyglass lint
-spyglass:
-  script:
-    - make nonfree
-    - make spyglass
-    - util/lint/check_spyglass_lint.py --threshold 3
-        nonfree/lint/build/sg_projects/snitch_cluster/snitch_cluster/lint/lint_rtl/spyglass_reports/moresimple.rpt

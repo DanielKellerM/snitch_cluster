@@ -34,13 +34,14 @@ module reqrsp_to_tcdm #(
   rr_req_chan_t req;
   rr_rsp_chan_t rsp;
 
-  stream_to_mem #(
+  cc_stream_to_mem #(
     .mem_req_t (rr_req_chan_t),
     .mem_resp_t (rr_rsp_chan_t),
     .BufDepth (BufDepth)
   ) i_stream_to_mem (
     .clk_i,
     .rst_ni,
+    .clr_i (1'b0),
     .req_i (reqrsp_req_i.q),
     .req_valid_i (reqrsp_req_i.q_valid),
     .req_ready_o (reqrsp_rsp_o.q_ready),

@@ -48,16 +48,17 @@ module snitch_ssr import snitch_ssr_pkg::*; #(
   data_t fifo_out, fifo_in;
   logic fifo_push, fifo_pop, fifo_full, fifo_empty;
   logic has_credit, credit_take, credit_give, credit_full;
-  logic [Cfg.RptWidth-1:0] rep_max, rep_q, rep_d, rep_done, rep_enable, rep_clear;
+  logic [Cfg.RptWidth-1:0] rep_max, rep_q, rep_d;
+  logic rep_done, rep_enable, rep_clear;
 
-  fifo_v3 #(
-    .FALL_THROUGH ( 0           ),
-    .DATA_WIDTH   ( DataWidth   ),
-    .DEPTH        ( Cfg.DataCredits )
+  cc_fifo #(
+    .FallThrough ( 0           ),
+    .DataWidth   ( DataWidth   ),
+    .Depth       ( Cfg.DataCredits )
   ) i_fifo (
     .clk_i,
     .rst_ni,
-    .testmode_i ( 1'b0       ),
+    .clr_i      ( '0         ),
     .flush_i    ( '0         ),
     .full_o     ( fifo_full  ),
     .empty_o    ( fifo_empty ),
@@ -180,14 +181,14 @@ module snitch_ssr import snitch_ssr_pkg::*; #(
 
   if (Cfg.IsectMaster) begin : gen_isect_master
     // A FIFO keeping the zero flag for in-flight reads only.
-    fifo_v3 #(
-      .FALL_THROUGH ( 0 ),
-      .DATA_WIDTH   ( 1 ),
-      .DEPTH        ( Cfg.DataCredits )
+    cc_fifo #(
+      .FallThrough ( 0 ),
+      .DataWidth   ( 1 ),
+      .Depth       ( Cfg.DataCredits )
     ) i_fifo_zero (
       .clk_i,
       .rst_ni,
-      .testmode_i ( 1'b0        ),
+      .clr_i      ( '0          ),
       .flush_i    ( '0          ),
       .full_o     (  ),
       .empty_o    ( zero_empty  ),

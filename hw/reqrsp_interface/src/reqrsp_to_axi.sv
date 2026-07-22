@@ -61,7 +61,7 @@ module reqrsp_to_axi import reqrsp_pkg::*; import snitch_pkg::*; #(
   input  axi_rsp_t axi_rsp_i
 );
 
-  localparam int unsigned CounterWidth = cf_math_pkg::idx_width(MaxTrans);
+  localparam int unsigned CounterWidth = cc_pkg::idx_width(MaxTrans);
   typedef logic [CounterWidth-1:0] cnt_t;
   logic req_is_amo;
   logic is_write;
@@ -195,11 +195,12 @@ module reqrsp_to_axi import reqrsp_pkg::*; import snitch_pkg::*; #(
   assign axi_req_o.w.user    = reqrsp_req_i.q.user;
 
   // Both channels need to handshake (independently).
-  stream_fork #(
-    .N_OUP (2)
+  cc_stream_fork #(
+    .NumOup (2)
   ) i_stream_fork (
     .clk_i,
     .rst_ni,
+    .clr_i   (1'b0),
     .valid_i (q_valid_write),
     .ready_o (q_ready_write),
     .valid_o ({axi_req_o.aw_valid, axi_req_o.w_valid}),

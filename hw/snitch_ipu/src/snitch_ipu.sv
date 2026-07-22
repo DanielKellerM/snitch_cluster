@@ -264,12 +264,13 @@ module snitch_ipu import snitch_pkg::*;  #(
         .result_o    ( dsp.result                  )
     );
     // Output Arbitration
-    stream_arbiter #(
-      .DATA_T ( result_t ),
-      .N_INP  ( 2        )
+    cc_stream_arbiter #(
+      .data_t ( result_t ),
+      .NumInp ( 2        )
     ) i_stream_arbiter (
       .clk_i,
       .rst_ni,
+      .clr_i       ( 1'b0                   ),
       .inp_data_i  ( {div, dsp}             ),
       .inp_valid_i ( {div_valid, dsp_valid} ),
       .inp_ready_o ( {div_ready, dsp_ready} ),
@@ -297,12 +298,13 @@ module snitch_ipu import snitch_pkg::*;  #(
       .id_o        ( mul.id                      )
     );
     // Output Arbitration
-    stream_arbiter #(
-      .DATA_T ( result_t ),
-      .N_INP  ( 2        )
+    cc_stream_arbiter #(
+      .data_t ( result_t ),
+      .NumInp ( 2        )
     ) i_stream_arbiter (
       .clk_i,
       .rst_ni,
+      .clr_i       ( 1'b0                   ),
       .inp_data_i  ( {div, mul}             ),
       .inp_valid_i ( {div_valid, mul_valid} ),
       .inp_ready_o ( {div_ready, mul_ready} ),
@@ -376,7 +378,7 @@ module dspu #(
   logic [4:0] imm5;
   logic [5:0] imm6;
   assign imm5 = operator_i[24:20];
-  assign imm6 = {operator_i[24:20], operator_i[25]};
+  assign imm6 = operator_i[25:20];
 
   // Internal control signals
   logic cmp_signed;            // comparator operation is signed
