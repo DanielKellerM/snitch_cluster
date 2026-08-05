@@ -56,13 +56,14 @@ packages:
       Git: https://github.com/pulp-platform/common_verification.git
     dependencies: []
   core_ips:
-    revision: 5d0eaf02297ef0818f83e178f2818435eaa8fc05
-    version: 0.1.0
+    revision: 5cc30f0da57c7a7168452c1e30f96d158ccfa016
+    version: null
     source:
       Git: https://github.com/pulp-platform/core_ips.git
     dependencies:
     - axi
     - common_cells
+    - fpnew
     - reqrsp_interface
   core_v_xif:
     revision: fad32c62f07ec7304a7169640eaf946da3727f77
@@ -142,7 +143,7 @@ packages:
     dependencies:
     - tech_cells_generic
   spatz_vpu:
-    revision: 0266c93f3e660db0d2eb756a00fa622b9076ddd9
+    revision: 039ea68967fe8d59fea3803f6ec3682cb1fde5b3
     version: null
     source:
       Git: https://github.com/pulp-platform/spatz_vpu.git

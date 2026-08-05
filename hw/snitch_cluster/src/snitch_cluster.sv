@@ -323,7 +323,6 @@ module snitch_cluster
   localparam int unsigned BanksPerHyperBank = NrBanks / NrHyperBanks;
   localparam int unsigned BanksPerSuperBank = WideDataWidth / NarrowDataWidth;
   localparam int unsigned NrSuperBanks = NrBanks / BanksPerSuperBank;
-  localparam int unsigned DcaLaneDataWidth = NarrowDataWidth;
 
   // tcdm_user_t contains the following fields:
   // [CoreIDWidth:1] core_id
@@ -455,6 +454,65 @@ module snitch_cluster
     return cnt;
   endfunction
 
+  // -------------
+  // DCA Constants
+  // -------------
+
+  // These are local to this module, rather than living in `snitch_cluster_pkg`, because their
+  // `isa_cfg` array formal needs to be sized to `NrCores` for Verilator to be able to
+  // constant-fold calls to them into the `localparam`s below. `NrCores` is only a genuine
+  // elaboration-time constant here, in the module that instantiates the cluster; a
+  // package-level function would need an unsized (`isa_cfg[]`) formal instead, which Verilator
+  // implements internally as a queue, and it can't constant-fold the implicit conversion of the
+  // fixed-size actual array into that formal.
+
+  // Calculate number of DCA lanes. Assumes that the first N cores all have the same datapath
+  // width, for some N. This is the value calculated by this function.
+  function automatic int unsigned num_dca_lanes_available(
+    input snitch_pkg::isa_cfg_t isa_cfg[NrCores]
+  );
+    automatic int unsigned lanes = 0;
+    if (isa_cfg[0].RVV) begin
+      for (int i = 0; i < NrCores; i++) begin
+        if (isa_cfg[i].RVV) begin
+          lanes++;
+        end else begin
+          break;
+        end
+      end
+    end else begin
+      for (int i = 0; i < NrCores; i++) begin
+        if (!isa_cfg[i].RVV) begin
+          lanes++;
+        end else begin
+          break;
+        end
+      end
+    end
+    return lanes;
+  endfunction
+
+  // DCA lane width. Assumes that the first N cores all have the same datapath width, for some N,
+  // and that these cores are the ones that support DCA.
+  function automatic int unsigned dca_lane_width(
+    input snitch_pkg::isa_cfg_t isa_cfg[NrCores],
+    input int unsigned narrow_data_width
+  );
+    return snitch_cc_pkg::datapath_width(isa_cfg[0], narrow_data_width);
+  endfunction
+
+  // Maximum DCA data width. Assumes that all DCA lanes have the same datapath width.
+  function automatic int unsigned max_dca_width(
+    input snitch_pkg::isa_cfg_t isa_cfg[NrCores],
+    input int unsigned narrow_data_width
+  );
+    return dca_lane_width(isa_cfg, narrow_data_width) * num_dca_lanes_available(isa_cfg);
+  endfunction
+
+  localparam int unsigned DcaLaneWidth = dca_lane_width(IsaCfg, NarrowDataWidth);
+  localparam int unsigned NumDcaLanes = EnableDca ? DcaDataWidth / DcaLaneWidth : 0;
+  localparam int unsigned MaxDcaDataWidth = max_dca_width(IsaCfg, NarrowDataWidth);
+
   // --------
   // Typedefs
   // --------
@@ -499,7 +557,7 @@ module snitch_cluster
   `TCDM_TYPEDEF_ALL(tcdm, NarrowDataWidth, TCDMAddrWidth, TcdmUserWidth)
 
   // Define dca_lane_req_t and dca_lane_rsp_t
-  `DCA_TYPEDEF_ALL(dca_lane, DcaLaneDataWidth)
+  `DCA_TYPEDEF_ALL(dca_lane, DcaLaneWidth)
 
   // Event counter increments for the TCDM.
   typedef struct packed {
@@ -1011,22 +1069,26 @@ module snitch_cluster
   // TODO(colluca): the number of DMA cores here is hardcoded
   if (EnableDca) begin : gen_dca
     dca_fork #(
-      .LaneDataWidth(DcaLaneDataWidth),
-      .NumLanes(NrCores-1)
+      .LaneDataWidth(DcaLaneWidth),
+      .NumLanes(NumDcaLanes)
     ) i_dca_fork (
       .clk_i,
       .rst_ni,
       .slv_req_i(dca_req_i),
       .slv_rsp_o(dca_rsp_o),
-      .mst_req_o(dca_lane_req[NrCores-2:0]),
-      .mst_rsp_i(dca_lane_rsp[NrCores-2:0])
+      .mst_req_o(dca_lane_req[NumDcaLanes-1:0]),
+      .mst_rsp_i(dca_lane_rsp[NumDcaLanes-1:0])
     );
-    `REQRSP_TIE_OFF_REQ(dca_lane_req[NrCores-1])
   end else begin : gen_no_dca
-    for (genvar i = 0; i < NrCores; i++) begin : gen_tie_off_lane
+    for (genvar i = 0; i < NumDcaLanes; i++) begin : gen_tie_off_lane
       `REQRSP_TIE_OFF_REQ(dca_lane_req[i])
     end
     `REQRSP_TIE_OFF_RSP(dca_rsp_o)
+  end
+
+  // Tie off disabled DCA lanes
+  for (genvar i = NumDcaLanes; i < NrCores; i++) begin : gen_tie_off_dca
+    `REQRSP_TIE_OFF_REQ(dca_lane_req[i])
   end
 
   for (genvar i = 0; i < NrCores; i++) begin : gen_core
@@ -1117,7 +1179,7 @@ module snitch_cluster
       .TCDMAliasEnable (AliasRegionEnable),
       .TCDMAliasStart (TCDMAliasStart),
       .CollectiveWidth (CollectiveWidth),
-      .EnableDca (EnableDca)  
+      .EnableDca (EnableDca && (i < NumDcaLanes))
     ) i_snitch_cc (
       .clk_i,
       .clk_d2_i (clk_d2),
@@ -1713,12 +1775,11 @@ module snitch_cluster
   `ASSERT_INIT(NumberDMA, dma_count() <= 1)
   `ASSERT_INIT(UserCsrWidth, (CollectiveWidth + PhysicalAddrWidth) < 64,
     $sformatf("64-bit user CSR too small to accomodate %d-bit collective and %d-bit address", CollectiveWidth, PhysicalAddrWidth))
-  // TODO(colluca): extend to support any DcaDataWidth that is an integer multiple of NarrowDataWidth
-  //                and lower than NarrowDataWidth * NrComputeCores
-  `ASSERT_INIT(DcaSystemConfiguration, (!EnableDca) || (NrCores == 9))
-  `ASSERT_INIT(DcaSystemWideDataWidth, (!EnableDca) || (WideDataWidth == 512))
-  `ASSERT_INIT(DcaSystemNarrowDataWidth, (!EnableDca) || (NarrowDataWidth == 64))
-  // DcaDataWidth could potentially be < WideDataWidth, but for now we don't allow this
-  `ASSERT_INIT(CheckDcaDataWidth, DcaDataWidth == WideDataWidth)
+  // DcaDataWidth must be an integer multiple of the lane width
+  `ASSERT_INIT(IntegerNumDcaLanes, (!EnableDca) || (DcaDataWidth % DcaLaneWidth == 0))
+  // DcaDataWidth must be smaller than the aggregate width of all the lanes
+  `ASSERT_INIT(DcaDataWidthInBounds, (!EnableDca) || (DcaDataWidth <= MaxDcaDataWidth))
+  // DCA currently assumes NarrowDataWidth == 64. Could be relaxed if RVV is used for DCA...
+  `ASSERT_INIT(DcaCompatibleNarrowDataWidth, (!EnableDca) || (NarrowDataWidth == 64))
 
 endmodule
