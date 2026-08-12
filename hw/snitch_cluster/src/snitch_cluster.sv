@@ -580,6 +580,7 @@ module snitch_cluster
       axi_pkg::len_t aw_len, ar_len;
       axi_pkg::size_t aw_size, ar_size;
       logic [$clog2(WideDataWidth/8):0] num_bytes_written;
+      logic obi_wr_req, obi_rd_req;
   } dma_events_t;
 
   typedef struct packed {

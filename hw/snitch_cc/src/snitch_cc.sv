@@ -9,6 +9,7 @@
 `include "snitch/typedef.svh"
 `include "reqrsp_interface/typedef.svh"
 `include "tcdm_interface/typedef.svh"
+`include "obi/typedef.svh"
 `include "dca_interface/typedef.svh"
 
 /// Snitch Core Complex (CC)
@@ -556,6 +557,33 @@ module snitch_cc
   /////////
 
   if (IsaCfg.Xdma) begin : gen_dma
+    `OBI_TYPEDEF_ALL(dma_obi, obi_pkg::obi_default_cfg(AddrWidth, DMADataWidth, DMAIdWidth, obi_pkg::ObiMinimalOptionalConfig))
+
+    typedef struct packed {
+      logic [AddrWidth-1:0]      cfg;
+      logic [DMADataWidth-1:0]   term;
+      logic [DMADataWidth/8-1:0] strb;
+      logic [DMAIdWidth-1:0]     id;
+    } dma_init_req_chan_t;
+    typedef struct packed {
+      dma_init_req_chan_t req_chan;
+      logic               req_valid;
+      logic               rsp_ready;
+    } dma_init_req_t;
+    typedef struct packed {
+      logic [DMADataWidth-1:0] init;
+    } dma_init_rsp_chan_t;
+    typedef struct packed {
+      dma_init_rsp_chan_t rsp_chan;
+      logic               rsp_valid;
+      logic               req_ready;
+    } dma_init_rsp_t;
+    typedef struct packed {
+      logic [31:0]          idx;
+      logic [AddrWidth-1:0] start_addr;
+      logic [AddrWidth-1:0] end_addr;
+    } dma_addr_rule_t;
+
     idma_inst64_top #(
       .AxiAddrWidth   (AddrWidth),
       .AxiDataWidth   (DMADataWidth),
@@ -571,7 +599,16 @@ module snitch_cc
       .axi_res_t      (axi_rsp_t),
       .acc_req_t      (acc_req_chan_t),
       .acc_res_t      (acc_rsp_chan_t),
-      .dma_events_t   (dma_events_t)
+      .dma_events_t   (dma_events_t),
+      .init_req_chan_t(dma_init_req_chan_t),
+      .init_rsp_chan_t(dma_init_rsp_chan_t),
+      .init_req_t     (dma_init_req_t),
+      .init_rsp_t     (dma_init_rsp_t),
+      .obi_a_chan_t   (dma_obi_a_chan_t),
+      .obi_r_chan_t   (dma_obi_r_chan_t),
+      .obi_req_t      (dma_obi_req_t),
+      .obi_res_t      (dma_obi_rsp_t),
+      .addr_rule_t    (dma_addr_rule_t)
     ) i_idma_inst64_top (
       .clk_i,
       .rst_ni,
