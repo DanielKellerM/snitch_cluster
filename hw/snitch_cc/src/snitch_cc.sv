@@ -556,34 +556,35 @@ module snitch_cc
   // DMA //
   /////////
 
+  // At module scope: VCS rejects generate-local types used to parameterize an instance.
+  `OBI_TYPEDEF_ALL(dma_obi, obi_pkg::obi_default_cfg(AddrWidth, DMADataWidth, DMAIdWidth, obi_pkg::ObiMinimalOptionalConfig))
+
+  typedef struct packed {
+    logic [AddrWidth-1:0]      cfg;
+    logic [DMADataWidth-1:0]   term;
+    logic [DMADataWidth/8-1:0] strb;
+    logic [DMAIdWidth-1:0]     id;
+  } dma_init_req_chan_t;
+  typedef struct packed {
+    dma_init_req_chan_t req_chan;
+    logic               req_valid;
+    logic               rsp_ready;
+  } dma_init_req_t;
+  typedef struct packed {
+    logic [DMADataWidth-1:0] init;
+  } dma_init_rsp_chan_t;
+  typedef struct packed {
+    dma_init_rsp_chan_t rsp_chan;
+    logic               rsp_valid;
+    logic               req_ready;
+  } dma_init_rsp_t;
+  typedef struct packed {
+    logic [31:0]          idx;
+    logic [AddrWidth-1:0] start_addr;
+    logic [AddrWidth-1:0] end_addr;
+  } dma_addr_rule_t;
+
   if (IsaCfg.Xdma) begin : gen_dma
-    `OBI_TYPEDEF_ALL(dma_obi, obi_pkg::obi_default_cfg(AddrWidth, DMADataWidth, DMAIdWidth, obi_pkg::ObiMinimalOptionalConfig))
-
-    typedef struct packed {
-      logic [AddrWidth-1:0]      cfg;
-      logic [DMADataWidth-1:0]   term;
-      logic [DMADataWidth/8-1:0] strb;
-      logic [DMAIdWidth-1:0]     id;
-    } dma_init_req_chan_t;
-    typedef struct packed {
-      dma_init_req_chan_t req_chan;
-      logic               req_valid;
-      logic               rsp_ready;
-    } dma_init_req_t;
-    typedef struct packed {
-      logic [DMADataWidth-1:0] init;
-    } dma_init_rsp_chan_t;
-    typedef struct packed {
-      dma_init_rsp_chan_t rsp_chan;
-      logic               rsp_valid;
-      logic               req_ready;
-    } dma_init_rsp_t;
-    typedef struct packed {
-      logic [31:0]          idx;
-      logic [AddrWidth-1:0] start_addr;
-      logic [AddrWidth-1:0] end_addr;
-    } dma_addr_rule_t;
-
     idma_inst64_top #(
       .AxiAddrWidth   (AddrWidth),
       .AxiDataWidth   (DMADataWidth),
