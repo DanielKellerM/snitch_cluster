@@ -557,7 +557,10 @@ module snitch_cc
   /////////
 
   // At module scope: VCS rejects generate-local types used to parameterize an instance.
-  `OBI_TYPEDEF_ALL(dma_obi, obi_pkg::obi_default_cfg(AddrWidth, DMADataWidth, DMAIdWidth, obi_pkg::ObiMinimalOptionalConfig))
+  // Separate localparam: Fusion Compiler rejects the cfg call nested in the typedef macro.
+  localparam obi_pkg::obi_cfg_t DmaObiCfg =
+      obi_pkg::obi_default_cfg(AddrWidth, DMADataWidth, DMAIdWidth, obi_pkg::ObiMinimalOptionalConfig);
+  `OBI_TYPEDEF_ALL(dma_obi, DmaObiCfg)
 
   typedef struct packed {
     logic [AddrWidth-1:0]      cfg;
